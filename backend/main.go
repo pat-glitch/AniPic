@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -70,5 +71,33 @@ func getAnimalPhotos(client *http.Client) ([]string, error) {
 	// Implement the API call to Google Photos Library to search for animal photos
 	// Parse the response and return the photo URLs or IDs
 
-	return []string{}, nil
+	req, err := http.NewRequest("GET", "https://photoslibrary.googleapis.com/v1/mediaItems:search", nil)
+	if err != nil {
+		return nil, err
+	}
+	q := req.URL.Query()
+	q.Add("query", "animal")
+	req.URL.RawQuery = q.Encode()
+	req.Header.Set("Authorization", "Bearer "+client.Transport.(*oauth2.Transport).Source.Token().AccessToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		MediaItems []struct {
+			BaseURL string `json:"baseUrl"`
+		} `json:"mediaItems"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	var photos []string
+	for _, item := range result.MediaItems {
+		photos = append(photos, item.BaseURL)
+	}
+	return photos, nil
 }

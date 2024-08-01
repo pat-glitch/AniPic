@@ -6,68 +6,45 @@ document.getElementById('fileInput').onchange = function(event) {
     const files = event.target.files;
     const preview = document.getElementById('imagePreview');
     preview.innerHTML = '';
-
-    for (let i = 0; i < files.length; i++) {
+    for (let file of files) {
         const img = document.createElement('img');
-        img.src = URL.createObjectURL(files[i]);
+        img.src = URL.createObjectURL(file);
+        img.height = 100;
         preview.appendChild(img);
     }
-
     document.getElementById('uploadButton').disabled = false;
 };
 
-document.getElementById('uploadButton').onclick = async function() {
-    const files = document.getElementById('fileInput').files;
-    if (files.length === 0) {
-        alert('Please select images to upload.');
-        return;
-    }
-
+document.getElementById('uploadButton').onclick = function() {
+    const input = document.getElementById('fileInput');
+    const files = input.files;
     const formData = new FormData();
-    for (let i = 0; i < files.length; i++) {
-        formData.append('images', files[i]);
+    for (let file of files) {
+        formData.append('images', file);
     }
 
-    try {
-        const response = await fetch('/upload', {
-            method: 'POST',
-            body: formData
-        });
-        const result = await response.json();
-        if (response.ok) {
-            document.getElementById('result').innerText = 'Images uploaded successfully!';
-            document.getElementById('animateButton').disabled = false;
-            sessionStorage.setItem('imageUrls', JSON.stringify(result.imageUrls));
-        } else {
-            document.getElementById('result').innerText = 'Failed to upload images: ' + result.error;
-        }
-    } catch (error) {
-        document.getElementById('result').innerText = 'Failed to upload images: ' + error.message;
-    }
+    fetch('/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        window.uploadedImages = data.imageUrls;
+        document.getElementById('animateButton').disabled = false;
+    });
 };
 
-document.getElementById('animateButton').onclick = async function() {
-    const imageUrls = JSON.parse(sessionStorage.getItem('imageUrls'));
-    if (!imageUrls || imageUrls.length === 0) {
-        alert('No images to animate.');
-        return;
-    }
-
-    try {
-        const response = await fetch('/animate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ imageUrls })
-        });
-        const result = await response.json();
-        if (response.ok) {
-            document.getElementById('result').innerHTML = `Animation created! <a href="${result.animationUrl}" target="_blank">View Animation</a>`;
-        } else {
-            document.getElementById('result').innerText = 'Failed to create animation: ' + result.error;
-        }
-    } catch (error) {
-        document.getElementById('result').innerText = 'Failed to create animation: ' + error.message;
-    }
+document.getElementById('animateButton').onclick = function() {
+    fetch('/animate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ imageUrls: window.uploadedImages })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const resultDiv = document.getElementById('animationResult');
+        resultDiv.innerHTML = `<a href="${data.downloadUrl}">Download Animation</a>`;
+    });
 };

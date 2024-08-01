@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/gif"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -16,17 +17,68 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/image/draw"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/drive/v3"
+	"google.golang.org/api/option"
 )
 
-var bucketName = "your-bucket-name"
+var (
+	bucketName   = "your-bucket-name"
+	oauthConfig  *oauth2.Config
+	driveService *drive.Service
+)
+
+const credFilePath = "credentials.json"
+
+func init() {
+	b, err := os.ReadFile(credFilePath)
+	if err != nil {
+		log.Fatalf("Unable to read client secret file: %v", err)
+	}
+
+	config, err := google.ConfigFromJSON(b, drive.DriveFileScope)
+	if err != nil {
+		log.Fatalf("Unable to parse client secret file to config: %v", err)
+	}
+	oauthConfig = config
+}
 
 func main() {
 	router := gin.Default()
 
+	router.GET("/login", handleGoogleLogin)
+	router.GET("/oauth2callback", handleGoogleCallback)
 	router.POST("/upload", handleUpload)
 	router.POST("/animate", handleAnimate)
+	router.GET("/download/:filename", handleDownload)
 
 	router.Run(":8080")
+}
+
+func handleGoogleLogin(c *gin.Context) {
+	url := oauthConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	c.Redirect(http.StatusTemporaryRedirect, url)
+}
+
+func handleGoogleCallback(c *gin.Context) {
+	code := c.Query("code")
+
+	token, err := oauthConfig.Exchange(context.Background(), code)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to exchange token"})
+		return
+	}
+
+	client := oauthConfig.Client(context.Background(), token)
+	srv, err := drive.NewService(context.Background(), option.WithHTTPClient(client))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to create Drive client"})
+		return
+	}
+	driveService = srv
+
+	c.JSON(http.StatusOK, gin.H{"message": "Login successful"})
 }
 
 func handleUpload(c *gin.Context) {
@@ -156,7 +208,15 @@ func handleAnimate(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"animationUrl": animationURL})
+	if driveService != nil {
+		err := saveToDrive(animation, "animation.gif")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save to Google Drive"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"animationUrl": animationURL, "downloadUrl": fmt.Sprintf("/download/%s", "animation.gif")})
 }
 
 func createAnimation(imageUrls []string) ([]byte, error) {
@@ -213,4 +273,31 @@ func uploadAnimationToGCS(animation []byte) (string, error) {
 	}
 
 	return fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucketName, objectName), nil
+}
+
+func saveToDrive(fileContent []byte, filename string) error {
+	fileMetadata := &drive.File{
+		Name:    filename,
+		Parents: []string{"root"},
+	}
+	file := bytes.NewReader(fileContent)
+
+	_, err := driveService.Files.Create(fileMetadata).Media(file).Do()
+	return err
+}
+
+func handleDownload(c *gin.Context) {
+	filename := c.Param("filename")
+	filePath := filepath.Join(os.TempDir(), filename)
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+	defer f.Close()
+
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "application/octet-stream")
+	c.File(filePath)
 }

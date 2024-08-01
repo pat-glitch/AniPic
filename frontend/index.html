@@ -1,15 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, inital-scale=1.0">
-        <tile>Animal Photos</tile>
-        <link rel="stylesheet" href="style.css">
-    </head>
+<head>
+    <title>AniPic</title>
+    <style>
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .image-preview {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .image-preview img {
+            max-width: 100px;
+            margin: 5px;
+        }
+        #loginButton, #uploadButton, #animateButton {
+            margin-top: 20px;
+        }
+    </style>
+</head>
 <body>
-    <h1>Search Animal Photos</h1>
-    <button id="search-btn">Search</button>
-    <div id="photos"></div>
-    <script src="app.js"></script>
-</body>  
+    <div class="container">
+        <h1>Image Animation App</h1>
+        <button id="loginButton">Login with Google</button>
+        <input type="file" id="fileInput" multiple accept="image/*">
+        <button id="uploadButton" disabled>Upload Images</button>
+        <div class="image-preview" id="imagePreview"></div>
+        <button id="animateButton" disabled>Create Animation</button>
+        <div id="result"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
 </html>

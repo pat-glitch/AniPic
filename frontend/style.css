@@ -1,10 +1,15 @@
-body{
-    font-family: Arial, sans-serif;
-    text-align: center;
-    margin: 20px;
+#gallery, #animation {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
 }
-
-#photos img{
-    max-width: 200px;
-    margin: 10px;    
+.image-item, .animation-item {
+    width: 200px;
+    height: 200px;
+    overflow: hidden;
+}
+.image-item img, .animation-item img {
+    width: 100%;
+    height: auto;
 }
